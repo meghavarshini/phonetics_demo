@@ -1,0 +1,20 @@
+# Phonetics Demo App - Requirements
+# Compatible with Python 3.9, 3.10, 3.11
+
+# Web framework
+streamlit>=1.28.0
+
+# Audio analysis and processing
+praat-parselmouth>=0.4.3
+librosa>=0.10.0
+sounddevice>=0.4.6
+soundfile>=0.12.1
+
+# Numerical and scientific computing
+numpy>=1.24.0,<2.0.0
+scipy>=1.10.0
+matplotlib>=3.7.0
+
+# Additional dependencies (usually installed automatically)
+pandas>=2.0.0
+pillow>=10.0.0

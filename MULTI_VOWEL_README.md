@@ -33,6 +33,86 @@ The updated `phonetics_app_multi_vowel.py` now supports **recording multiple vow
    - Automatic label staggering to avoid overlap
    - Download button for the final chart (300 DPI PNG)
 
+## Required Libraries
+
+### Python Version
+- **Python 3.9, 3.10, or 3.11** (all versions supported)
+
+### Core Dependencies
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| **streamlit** | Latest | Web app framework for interactive demos |
+| **praat-parselmouth** | Latest | Acoustic analysis (formants, pitch extraction) |
+| **librosa** | Latest | Audio processing and spectrogram generation |
+| **sounddevice** | Latest | Real-time audio recording from microphone |
+| **soundfile** | Latest | Reading/writing WAV audio files |
+| **numpy** | Latest | Numerical computation and array operations |
+| **scipy** | Latest | Scientific computing (used by librosa) |
+| **matplotlib** | Latest | Plotting and visualization |
+
+### Installation
+
+**Option 1: Using requirements.txt (Easiest)**
+```bash
+# Create virtual environment
+python3.9 -m venv phonetics_env
+source phonetics_env/bin/activate  # On Windows: phonetics_env\Scripts\activate
+
+# Install all dependencies
+pip install -r requirements.txt
+```
+
+**Option 2: Using Conda (Recommended for Mac)**
+```bash
+# Create environment
+conda create -n phonetics python=3.9 -y
+conda activate phonetics
+
+# Install from conda-forge
+conda install -c conda-forge numpy scipy matplotlib pandas -y
+
+# Install remaining with pip
+pip install streamlit praat-parselmouth librosa sounddevice soundfile
+```
+
+**Option 3: Using pip only**
+```bash
+# Create virtual environment
+python3.9 -m venv phonetics_env
+source phonetics_env/bin/activate  # On Windows: phonetics_env\Scripts\activate
+
+# Install all packages
+pip install streamlit praat-parselmouth librosa sounddevice soundfile numpy scipy matplotlib
+```
+
+**Option 4: Google Colab**
+```python
+# Run in a Colab cell
+!pip install streamlit praat-parselmouth librosa sounddevice soundfile
+```
+
+### Verify Installation
+```bash
+python -c "import streamlit, parselmouth, librosa, sounddevice; print('✅ All packages installed')"
+```
+
+### Troubleshooting
+
+**If microphone doesn't work:**
+```bash
+# Test audio devices
+python -m sounddevice
+```
+
+**If praat-parselmouth fails to install:**
+- Make sure you have a C++ compiler installed
+- On Mac: `xcode-select --install`
+- On Windows: Install Visual Studio Build Tools
+
+**If librosa is slow to install:**
+- It has many dependencies; be patient or use conda which has pre-built binaries
+
 ## Usage
 
 ```bash
