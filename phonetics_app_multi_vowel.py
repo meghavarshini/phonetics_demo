@@ -540,7 +540,7 @@ def main():
     st.sidebar.title("Demo Selection")
     demo_mode = st.sidebar.radio(
         "Choose a demo:",
-        ["🗣️ Vowel Plotting", "❓ Is This a Question?", "📊 Live Spectrogram & Waveform"]
+        ["📊 Live Spectrogram & Waveform", "❓ Is This a Question?", "🗣️ Vowel Plotting"]
     )
 
     st.sidebar.markdown("---")
@@ -552,9 +552,50 @@ def main():
     """)
 
     # =============================================================================
-    # DEMO 1: VOWEL PLOTTING (MULTI-VOWEL)
+    # DEMO 1: LIVE SPECTROGRAM & WAVEFORM
     # =============================================================================
-    if demo_mode == "🗣️ Vowel Plotting":
+    if demo_mode == "📊 Live Spectrogram & Waveform":
+        st.header("📊 Live Spectrogram & Waveform")
+        st.markdown("""
+        See your voice as a **waveform** (amplitude over time) and **spectrogram**
+        (frequency content over time). Try different sounds:
+
+        - **Vowels** - show clear harmonics (horizontal lines)
+        - **[s]** sound - high-frequency noise
+        - **[ʃ]** "sh" sound - lower frequency than [s]
+        - **Singing** - steady pitch shows as horizontal lines
+        - **Whispering** - no voicing, just noise
+        """)
+
+        duration = st.slider("Recording duration (seconds)", 2, 10, 4)
+
+        if st.button("🎤 Record & Visualize", type="primary"):
+            # Record audio
+            audio, sr = record_audio(duration=duration)
+            st.toast("✅ Recording complete!", icon="✅")
+
+            # Play back audio
+            st.audio(audio, sample_rate=sr)
+
+            # Plot waveform and spectrogram
+            with st.spinner("🎨 Generating visualizations..."):
+                fig = plot_waveform_and_spectrogram(audio, sr)
+
+            st.pyplot(fig)
+
+            # Additional info
+            st.info("""
+            **Reading the visualizations:**
+            - **Waveform (top)**: Shows how loud the sound is over time
+            - **Spectrogram (bottom)**: Brighter colors = more energy at that frequency
+            - Voiced sounds show regular patterns (harmonics)
+            - Voiceless sounds [s, sh, f] show noise patterns
+            """)
+
+    # =============================================================================
+    # DEMO 3: VOWEL PLOTTING (MULTI-VOWEL)
+    # =============================================================================
+    elif demo_mode == "🗣️ Vowel Plotting":
         st.header("🗣️ Vowel Plotting")
         st.markdown("""
         Record multiple vowel sounds and plot them all on a vowel chart to compare your vowel space!
@@ -1041,47 +1082,6 @@ def main():
                 fig = plot_pitch_contours_multi(None)
                 st.pyplot(fig)
                 st.info("👆 Record or load utterances to see pitch contours!")
-
-    # =============================================================================
-    # DEMO 3: LIVE SPECTROGRAM & WAVEFORM
-    # =============================================================================
-    elif demo_mode == "📊 Live Spectrogram & Waveform":
-        st.header("📊 Live Spectrogram & Waveform")
-        st.markdown("""
-        See your voice as a **waveform** (amplitude over time) and **spectrogram**
-        (frequency content over time). Try different sounds:
-
-        - **Vowels** - show clear harmonics (horizontal lines)
-        - **[s]** sound - high-frequency noise
-        - **[ʃ]** "sh" sound - lower frequency than [s]
-        - **Singing** - steady pitch shows as horizontal lines
-        - **Whispering** - no voicing, just noise
-        """)
-
-        duration = st.slider("Recording duration (seconds)", 2, 10, 4)
-
-        if st.button("🎤 Record & Visualize", type="primary"):
-            # Record audio
-            audio, sr = record_audio(duration=duration)
-            st.toast("✅ Recording complete!", icon="✅")
-
-            # Play back audio
-            st.audio(audio, sample_rate=sr)
-
-            # Plot waveform and spectrogram
-            with st.spinner("🎨 Generating visualizations..."):
-                fig = plot_waveform_and_spectrogram(audio, sr)
-
-            st.pyplot(fig)
-
-            # Additional info
-            st.info("""
-            **Reading the visualizations:**
-            - **Waveform (top)**: Shows how loud the sound is over time
-            - **Spectrogram (bottom)**: Brighter colors = more energy at that frequency
-            - Voiced sounds show regular patterns (harmonics)
-            - Voiceless sounds [s, sh, f] show noise patterns
-            """)
 
 
 if __name__ == "__main__":
