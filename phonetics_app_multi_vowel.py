@@ -654,7 +654,7 @@ def main():
                                             'sample_rate': sr,
                                             'filename': filepath
                                         })
-                                        st.success(f"✅ Loaded '{label}' from demo file!")
+                                        st.toast(f"✅ Loaded '{label}' from demo file!", icon="✅")
                                         st.rerun()
                                     else:
                                         st.error(f"⚠️ Could not extract formants from {filename}")
@@ -683,7 +683,7 @@ def main():
                                     loaded_count += 1
 
                         if loaded_count > 0:
-                            st.success(f"✅ Loaded {loaded_count} demo file(s)!")
+                            st.toast(f"✅ Loaded {loaded_count} demo file(s)!", icon="✅")
                             st.rerun()
                 else:
                     st.info("No demo files found in `./demo_recordings/vowels/`")
@@ -712,7 +712,7 @@ def main():
                 else:
                     # Record audio
                     audio, sr = record_audio(duration=duration)
-                    st.success("✅ Recording complete!")
+                    st.toast("✅ Recording complete!", icon="✅")
 
                     # Play back audio
                     st.audio(audio, sample_rate=sr)
@@ -744,7 +744,7 @@ def main():
                             'filename': filename
                         })
 
-                        st.success(f"✨ Added '{vowel_label}' to your vowel chart!")
+                        st.toast(f"✨ Added '{vowel_label}' to your vowel chart!", icon="✨")
                     else:
                         st.warning("⚠️ Could not extract formants. Try speaking louder or holding the vowel longer.")
 
@@ -872,7 +872,7 @@ def main():
                                                 'sample_rate': sr,
                                                 'filename': filepath
                                             })
-                                            st.success(f"✅ Loaded '{label}' from demo file!")
+                                            st.toast(f"✅ Loaded '{label}' from demo file!", icon="✅")
                                             st.rerun()
                                         else:
                                             st.error(f"⚠️ Could not extract pitch from {filename}")
@@ -909,7 +909,7 @@ def main():
                 else:
                     # Record audio
                     audio, sr = record_audio(duration=duration)
-                    st.success("✅ Recording complete!")
+                    st.toast("✅ Recording complete!", icon="✅")
 
                     # Play back audio
                     st.audio(audio, sample_rate=sr)
@@ -958,7 +958,7 @@ def main():
                             'filename': filename
                         })
 
-                        st.success(f"✨ Added '{utterance_label}' to comparison chart!")
+                        st.toast(f"✨ Added '{utterance_label}' to comparison chart!", icon="✨")
                         st.rerun()
                     else:
                         st.warning("⚠️ Could not extract pitch. Try speaking louder.")
@@ -1063,7 +1063,7 @@ def main():
         if st.button("🎤 Record & Visualize", type="primary"):
             # Record audio
             audio, sr = record_audio(duration=duration)
-            st.success("✅ Recording complete!")
+            st.toast("✅ Recording complete!", icon="✅")
 
             # Play back audio
             st.audio(audio, sample_rate=sr)
