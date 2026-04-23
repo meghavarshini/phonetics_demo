@@ -11,6 +11,17 @@ import os
 import time
 from datetime import datetime
 
+# Suppress warnings and verbose output
+import warnings
+warnings.filterwarnings('ignore')
+
+# Suppress numpy warnings
+np.seterr(all='ignore')
+
+# Suppress matplotlib warnings
+import logging
+logging.getLogger('matplotlib').setLevel(logging.ERROR)
+
 # Configure page
 st.set_page_config(
     page_title="Phonetics Demo - Maryland Day",

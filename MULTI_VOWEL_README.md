@@ -105,6 +105,22 @@ python -c "import streamlit, parselmouth, librosa, sounddevice; print('✅ All p
 python -m sounddevice
 ```
 
+**If you see flashing warnings/print statements:**
+The app now suppresses warnings by default. If you still see output flashing:
+```bash
+# Run with additional output suppression
+streamlit run phonetics_app_multi_vowel.py 2>/dev/null
+```
+
+Or add to your `~/.streamlit/config.toml`:
+```toml
+[runner]
+fastReruns = true
+
+[logger]
+level = "error"
+```
+
 **If praat-parselmouth fails to install:**
 - Make sure you have a C++ compiler installed
 - On Mac: `xcode-select --install`
