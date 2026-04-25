@@ -1,5 +1,6 @@
 import streamlit as st
 import numpy as np
+from scipy.signal import medfilt
 import parselmouth
 from parselmouth.praat import call
 import librosa
@@ -7,6 +8,7 @@ import librosa.display
 import matplotlib.pyplot as plt
 import sounddevice as sd
 import soundfile as sf
+import io
 import os
 import time
 from datetime import datetime
@@ -196,7 +198,7 @@ def extract_formants(audio, sample_rate, num_formants=5):
 
 
 def extract_pitch(audio, sample_rate):
-    """Extract pitch contour using Parselmouth/Praat.
+    """Extract pitch contour using Parselmouth/Praat with voicing detection.
 
     Args:
         audio (np.array): Audio signal
@@ -207,18 +209,87 @@ def extract_pitch(audio, sample_rate):
     """
     sound = parselmouth.Sound(audio, sampling_frequency=sample_rate)
 
-    # Extract pitch using autocorrelation (Praat default)
+    # Extract pitch using autocorrelation with stricter voicing threshold
+    # Parameters: time_step, pitch_floor, pitch_ceiling
+    # Using default "To Pitch" but will filter by voicing strength
     pitch = call(sound, "To Pitch", 0.0, 75, 600)  # 75-600 Hz range for human speech
 
-    # Get pitch values over time
+    # Calculate energy threshold (20% of max RMS energy) - more permissive
+    # Compute RMS energy in windows
+    window_size = int(0.03 * sample_rate)  # 30ms windows
+    hop_size = int(0.01 * sample_rate)  # 10ms hops
+    energies = []
+    energy_times = []
+
+    for i in range(0, len(audio) - window_size, hop_size):
+        window = audio[i:i + window_size]
+        rms = np.sqrt(np.mean(window ** 2))
+        energies.append(rms)
+        energy_times.append(i / sample_rate + (window_size / 2 / sample_rate))
+
+    energies = np.array(energies)
+    energy_times = np.array(energy_times)
+
+    # More permissive thresholds
+    energy_threshold = np.max(energies) * 0.15 if len(energies) > 0 else 0  # 15% of maximum
+    voicing_threshold = 0.4  # 40% voicing confidence (more permissive)
+
+    # Get pitch values over time with voicing and energy filtering
     time_points = []
     pitch_values = []
 
     for t in np.arange(0, sound.duration, 0.01):  # Sample every 10ms
         pitch_value = call(pitch, "Get value at time", t, "Hertz", "Linear")
-        if not np.isnan(pitch_value) and pitch_value > 0:
-            time_points.append(t)
-            pitch_values.append(pitch_value)
+
+        # Check if pitch exists
+        if np.isnan(pitch_value) or pitch_value <= 0:
+            continue
+
+        # Check voicing strength (Praat's internal voicing decision)
+        try:
+            voicing_strength = call(pitch, "Get strength", t)
+            if voicing_strength < voicing_threshold:
+                continue
+        except:
+            # If voicing strength can't be computed, use energy check only
+            pass
+
+        # Check energy threshold
+        # Find closest energy measurement
+        if len(energy_times) > 0:
+            closest_idx = np.argmin(np.abs(energy_times - t))
+            if energies[closest_idx] < energy_threshold:
+                continue
+
+        time_points.append(t)
+        pitch_values.append(pitch_value)
+
+    # Post-processing: remove isolated spikes using median filter
+    # Only apply if we have enough points
+    if len(pitch_values) > 5:
+        pitch_values = np.array(pitch_values)
+        time_points = np.array(time_points)
+
+        # Apply median filter to remove spikes (window size 5)
+        pitch_values_filtered = medfilt(pitch_values, kernel_size=5)
+
+        # Remove points that jump more than 50% from the filtered value (octave errors)
+        # More permissive threshold
+        valid_indices = []
+        for i in range(len(pitch_values)):
+            if i == 0:
+                valid_indices.append(i)
+            else:
+                ratio = abs(pitch_values[i] - pitch_values_filtered[i]) / pitch_values_filtered[i]
+                if ratio < 0.4:  # Within 40% of median-filtered value (more permissive)
+                    valid_indices.append(i)
+
+        if len(valid_indices) > 0:
+            time_points = time_points[valid_indices]
+            pitch_values = pitch_values_filtered[valid_indices]
+        # If filtering removed everything, return unfiltered data
+        else:
+            pitch_values = pitch_values_filtered
 
     return np.array(time_points), np.array(pitch_values)
 
@@ -361,19 +432,27 @@ def plot_pitch_contours_multi(pitch_recordings=None):
     """
     fig, ax = plt.subplots(figsize=(14, 8), facecolor='white')
 
-    # Define colors for pitch contours (up to 3)
-    pitch_colors = ['blue', 'red', 'darkgray']
+    # Define colors for pitch contours (up to 3) - colorblind accessible
+    pitch_colors = ['blue', 'red', 'green']
+
+    # Define markers for colorblind accessibility
+    pitch_markers = ['s', '^', 'o']  # square, triangle, circle
+    marker_labels = ['■', '▲', '●']  # Unicode symbols for legend
 
     if pitch_recordings:
-        # Plot each recording with different color
+        # Plot each recording with different color and marker
         for idx, recording in enumerate(pitch_recordings):
             color = pitch_colors[idx % len(pitch_colors)]
+            marker = pitch_markers[idx % len(pitch_markers)]
+            marker_label = marker_labels[idx % len(marker_labels)]
             time = recording['time']
             pitch = recording['pitch']
             label = recording['label']
 
-            # Plot pitch contour (line only, no shading)
-            ax.plot(time, pitch, linewidth=5, color=color, label=label)
+            # Plot pitch contour with markers for colorblind accessibility
+            ax.plot(time, pitch, linewidth=5, color=color,
+                   marker=marker, markersize=8, markevery=len(time)//20 or 1,
+                   label=f"{marker_label} {label}")
 
         # Labels and formatting
         ax.set_xlabel('Time (s)', fontsize=14, weight='bold')
@@ -408,8 +487,12 @@ def plot_spectrograms_with_pitch(pitch_recordings):
     if not pitch_recordings:
         return None
 
-    # Define colors for pitch contours (matches the pitch plot)
-    pitch_colors = ['blue', 'red', 'darkgray']
+    # Define colors for pitch contours (matches the pitch plot) - colorblind accessible
+    pitch_colors = ['blue', 'red', 'green']
+
+    # Define markers for colorblind accessibility
+    pitch_markers = ['s', '^', 'o']  # square, triangle, circle
+    marker_labels = ['■', '▲', '●']  # Unicode symbols for legend
 
     # Create subplots - one per recording
     n_recordings = len(pitch_recordings)
@@ -426,6 +509,8 @@ def plot_spectrograms_with_pitch(pitch_recordings):
         pitch_values = recording['pitch']
         label = recording['label']
         color = pitch_colors[idx % len(pitch_colors)]
+        marker = pitch_markers[idx % len(pitch_markers)]
+        marker_label = marker_labels[idx % len(marker_labels)]
 
         # Compute spectrogram using librosa
         D = librosa.stft(audio)
@@ -441,10 +526,12 @@ def plot_spectrograms_with_pitch(pitch_recordings):
             cmap='gray_r'  # White to black (better for overlay)
         )
 
-        # Overlay pitch contour on the spectrogram
+        # Overlay pitch contour on the spectrogram with markers
         # Create a second y-axis for pitch
         ax2 = ax.twinx()
-        ax2.plot(time_points, pitch_values, linewidth=4, color=color, label=f'Pitch: {label}')
+        ax2.plot(time_points, pitch_values, linewidth=4, color=color,
+                marker=marker, markersize=8, markevery=len(time_points)//20 or 1,
+                label=f'{marker_label} Pitch: {label}')
         ax2.set_ylabel('Pitch (Hz)', fontsize=12, weight='bold', color=color)
         ax2.tick_params(axis='y', labelcolor=color)
         ax2.set_ylim([50, 500])  # Reasonable pitch range
@@ -452,7 +539,7 @@ def plot_spectrograms_with_pitch(pitch_recordings):
         # Format the main axis
         ax.set_xlabel('Time (s)', fontsize=12, weight='bold')
         ax.set_ylabel('Frequency (Hz)', fontsize=12, weight='bold')
-        ax.set_title(f'{label}', fontsize=14, weight='bold', pad=10, color=color)
+        ax.set_title(f'{marker_label} {label}', fontsize=14, weight='bold', pad=10, color=color)
         ax.set_ylim([0, 4000])  # Focus on speech range
 
         # Add legend
@@ -540,7 +627,7 @@ def main():
     st.sidebar.title("Demo Selection")
     demo_mode = st.sidebar.radio(
         "Choose a demo:",
-        ["📊 Live Spectrogram & Waveform", "❓ Is This a Question?", "🗣️ Vowel Plotting"]
+        ["🏠 Home", "📊 Live Spectrogram & Waveform", "❓ Is This a Question?", "🗣️ Vowel Plotting"]
     )
 
     st.sidebar.markdown("---")
@@ -552,9 +639,154 @@ def main():
     """)
 
     # =============================================================================
+    # LANDING PAGE / HOME
+    # =============================================================================
+    if demo_mode == "🏠 Home":
+        st.header("🎉 Welcome to Maryland Day!")
+        st.markdown("""
+        ### Explore the Science of Speech with Interactive Phonetics Demos
+
+        Welcome to our interactive phonetics demonstration! Today, you'll get to explore
+        the fascinating science behind how we produce and perceive speech sounds.
+        """)
+
+        st.markdown("---")
+
+        # Introduction to Phonetics
+        st.subheader("🔬 What is Phonetics?")
+        st.markdown("""
+        **Phonetics** is the scientific study of how we produce, perceive, and distinguish speech sounds. 
+                    It explores:
+
+        - **How we produce sounds** using our articulators (tongue, lips, vocal cords, etc.)
+        - **The physical properties** of speech sounds (frequency, amplitude, duration)
+        - **How we perceive and distinguish** different sounds (like "cat" vs "cot")
+
+        Every time you speak, your body performs an incredibly complex choreography!
+        Your vocal cords vibrate, your tongue moves to precise positions, and your mouth
+        shapes the sound waves that travel to a listener's ears. Checkout how
+        phoneticians analyse phonetic data!
+        """)
+
+        st.markdown("---")
+
+        # External Resources
+        st.subheader("🌐 Explore More: Interactive Phonetics Resources")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("#### 🗣️ [Pink Trombone](https://dood.al/pinktrombone/)")
+            st.markdown("""
+            **Interactive vocal tract simulator**
+
+            Pink Trombone is a fantastic hands-on tool that lets you control a
+            virtual vocal tract in real-time. You can:
+            - Move a virtual tongue to different positions
+            - Control voicing (vocal cord vibration)
+            - Hear exactly how different tongue positions create different vowel sounds
+            - Experiment with consonants by creating constrictions
+
+            It's like having an X-ray view of speech production! Perfect for understanding
+            how tiny changes in tongue position create completely different sounds.
+            """)
+
+        with col2:
+            st.markdown("#### 📊 [Interactive IPA Chart](https://www.ipachart.com)")
+            st.markdown("""
+            **International Phonetic Alphabet reference**
+
+            The IPA Chart is the linguist's best friend! This interactive resource:
+            - Shows all the sounds used in human languages
+            - Lets you click any symbol to hear how it sounds
+            - Organizes sounds by how and where they're produced
+            - Includes both common and rare speech sounds from languages worldwide
+
+            The IPA is a standardized system for transcribing speech sounds. Whether you're
+            learning a new language or studying linguistics, this chart is essential!
+            """)
+
+        st.markdown("---")
+
+        # Demo Introductions
+        st.subheader("🎯 Today's Interactive Demos")
+        st.markdown("""
+        Choose a demo from the sidebar to get started! Here's what each one offers:
+        """)
+
+        # Demo 1
+        st.markdown("#### 📊 1. Live Spectrogram & Waveform")
+        st.markdown("""
+        **See your voice as visual patterns**
+
+        This demo transforms your speech into two types of visualizations:
+        - **Waveform**: Shows how the amplitude (loudness) of your voice changes over time
+        - **Spectrogram**: Reveals the frequency content of your speech, like a musical score
+
+        You'll discover that:
+        - Vowels create clear harmonic patterns (horizontal stripes)
+        - Consonants like [s] and [sh] create noise patterns at different frequencies
+        - Singing shows up as perfectly straight horizontal lines
+        - Whispering has no harmonics, just noise!
+
+        *Great for: Understanding the difference between voiced and voiceless sounds*
+        """)
+
+        # Demo 2
+        st.markdown("#### ❓ 2. Is This a Question?")
+        st.markdown("""
+        **Compare pitch patterns in speech**
+
+        How do we know when someone is asking a question versus making a statement?
+        Often, it's all about the pitch contour (how pitch rises or falls)!
+
+        This demo lets you:
+        - Record up to 3 different utterances
+        - Visualize their pitch contours side-by-side
+        - See spectrograms with pitch overlaid
+        - Compare statements (falling pitch) vs. questions (rising pitch)
+
+        Try saying "You're going to the store" as both a statement and a question
+        to see the dramatic difference in pitch patterns!
+
+        *Great for: Understanding intonation and how we use pitch to convey meaning*
+        """)
+
+        # Demo 3
+        st.markdown("#### 🗣️ 3. Vowel Plotting")
+        st.markdown("""
+        **Map your vowel space**
+
+        Vowels are primarily distinguished by their **formants** – resonant frequencies
+        created by the shape of your vocal tract. This demo:
+
+        - Records your vowel sounds and extracts their first two formants (F1 and F2)
+        - Plots them on a vowel chart (F1 vs F2)
+        - Compares your vowels to standard reference vowels
+        - Lets you record multiple vowels to see your complete vowel space
+
+        You'll discover that:
+        - F1 relates to tongue height (low F1 = high tongue, like [i])
+        - F2 relates to tongue frontness/backness (high F2 = front tongue, like [i])
+        - Everyone's vowel space is slightly different!
+
+        *Great for: Understanding how tongue position creates different vowel sounds*
+        """)
+
+        st.markdown("---")
+
+        st.success("""
+        ### Ready to Get Started?
+        👈 Choose a demo from the sidebar to begin exploring!
+
+        **Remember:** All recordings are stored locally and will be deleted at the end
+        of this session. Have fun experimenting with different sounds!
+        """)
+
+    # =============================================================================
     # DEMO 1: LIVE SPECTROGRAM & WAVEFORM
     # =============================================================================
-    if demo_mode == "📊 Live Spectrogram & Waveform":
+    elif demo_mode == "📊 Live Spectrogram & Waveform":
         st.header("📊 Live Spectrogram & Waveform")
         st.markdown("""
         See your voice as a **waveform** (amplitude over time) and **spectrogram**
@@ -598,6 +830,10 @@ def main():
     elif demo_mode == "🗣️ Vowel Plotting":
         st.header("🗣️ Vowel Plotting")
         st.markdown("""
+        Have you ever wondered how changing our tonge shape can make an /i/ sound different from /a/?
+        Phoneticians analyse vowel sounds by measuring their **formants** – resonant frequencies created by the shape of your vocal tract.
+        The first two formants (F1 and F2) are especially important for distinguishing vowels. They tell us
+        how high or low your tongue is (F1) and how front or back it is (F2).
         Record multiple vowel sounds and plot them all on a vowel chart to compare your vowel space!
         Say only the vowel, holding it steady for the duration of the recording, not the entire word.
 
@@ -785,7 +1021,7 @@ def main():
                             'filename': filename
                         })
 
-                        st.toast(f"✨ Added '{vowel_label}' to your vowel chart!", icon="✨")
+                        st.toast(f"Added '{vowel_label}' to your vowel chart!")
                     else:
                         st.warning("⚠️ Could not extract formants. Try speaking louder or holding the vowel longer.")
 
@@ -842,6 +1078,9 @@ def main():
     elif demo_mode == "❓ Is This a Question?":
         st.header("❓ Is This a Question?")
         st.markdown("""
+        Have you ever wondered how we can tell if someone is asking a question just by the way their voice goes up at the end?
+        This demo lets you explore the magic of **intonation** – how pitch changes over the course of an utterance to convey meaning.
+        
         Record up to 3 utterances and compare their pitch contours side-by-side!
         Great for comparing statements vs. questions, or different intonation patterns.
 
@@ -999,8 +1238,7 @@ def main():
                             'filename': filename
                         })
 
-                        st.toast(f"✨ Added '{utterance_label}' to comparison chart!", icon="✨")
-                        st.rerun()
+                        st.toast(f"Added '{utterance_label}' to comparison chart!")
                     else:
                         st.warning("⚠️ Could not extract pitch. Try speaking louder.")
 
@@ -1038,6 +1276,11 @@ def main():
             - 📈 **Rising** pitch at the end = Question
             - 📉 **Falling** pitch at the end = Statement
             - ➡️ **Level** pitch = Flat/monotone
+
+            **Line markers (colorblind accessible):**
+            - ■ Square = First recording (blue)
+            - ▲ Triangle = Second recording (red)
+            - ● Circle = Third recording (green)
             """)
 
             # Plot pitch contours
