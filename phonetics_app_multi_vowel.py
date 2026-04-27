@@ -853,6 +853,14 @@ def main():
 
             # Clear data button at top
             if st.button("🗑️ Clear All Data", key='clear_top', type='secondary'):
+                # Delete only user-recorded files (not demo files)
+                for recording in st.session_state.vowel_recordings:
+                    filename = recording['filename']
+                    # Only delete if it's in the 'recordings/' directory
+                    if filename.startswith('recordings/') and os.path.exists(filename):
+                        os.remove(filename)
+
+                # Clear session state
                 st.session_state.vowel_recordings = []
                 st.rerun()
 
@@ -1037,11 +1045,25 @@ def main():
                             st.write(f"**{idx+1}. {vowel['label']}** - F1: {vowel['f1']:.0f} Hz, F2: {vowel['f2']:.0f} Hz")
                         with col_b:
                             if st.button("🗑️", key=f"delete_{idx}"):
+                                # Delete file if it's a user recording
+                                filename = st.session_state.vowel_recordings[idx]['filename']
+                                if filename.startswith('recordings/') and os.path.exists(filename):
+                                    os.remove(filename)
+
+                                # Remove from session state
                                 st.session_state.vowel_recordings.pop(idx)
                                 st.rerun()
 
                 # Clear all button
                 if st.button("🗑️ Clear All", key='clear_all'):
+                    # Delete only user-recorded files (not demo files)
+                    for recording in st.session_state.vowel_recordings:
+                        filename = recording['filename']
+                        # Only delete if it's in the 'recordings/' directory
+                        if filename.startswith('recordings/') and os.path.exists(filename):
+                            os.remove(filename)
+
+                    # Clear session state
                     st.session_state.vowel_recordings = []
                     st.rerun()
             else:
@@ -1101,6 +1123,14 @@ def main():
 
             # Clear data button at top
             if st.button("🗑️ Clear All Data", key='clear_pitch_top', type='secondary'):
+                # Delete only user-recorded files (not demo files)
+                for recording in st.session_state.pitch_recordings:
+                    filename = recording['filename']
+                    # Only delete if it's in the 'recordings/' directory
+                    if filename.startswith('recordings/') and os.path.exists(filename):
+                        os.remove(filename)
+
+                # Clear session state
                 st.session_state.pitch_recordings = []
                 st.rerun()
 
@@ -1257,11 +1287,25 @@ def main():
                             st.audio(recording['audio'], sample_rate=recording['sample_rate'])
                         with col_b:
                             if st.button("🗑️", key=f"delete_pitch_{idx}"):
+                                # Delete file if it's a user recording
+                                filename = st.session_state.pitch_recordings[idx]['filename']
+                                if filename.startswith('recordings/') and os.path.exists(filename):
+                                    os.remove(filename)
+
+                                # Remove from session state
                                 st.session_state.pitch_recordings.pop(idx)
                                 st.rerun()
 
                 # Clear all button
                 if st.button("🗑️ Clear All", key='clear_pitch_all'):
+                    # Delete only user-recorded files (not demo files)
+                    for recording in st.session_state.pitch_recordings:
+                        filename = recording['filename']
+                        # Only delete if it's in the 'recordings/' directory
+                        if filename.startswith('recordings/') and os.path.exists(filename):
+                            os.remove(filename)
+
+                    # Clear session state
                     st.session_state.pitch_recordings = []
                     st.rerun()
             else:
